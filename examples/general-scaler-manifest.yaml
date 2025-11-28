@@ -1,0 +1,29 @@
+apiVersion: autoscaling.example.com/v1alpha1
+kind: GeneralScaler
+metadata:
+  name: web-app-cost-scaler
+  namespace: default
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: test-web-app
+
+  minReplicas: 1
+  maxReplicas: 15
+
+  metrics:
+  - type: queue
+    plugin: redis
+    config:
+      host: redis-queue-service.default.svc.cluster.local
+      queue_name: worker-tasks
+
+  policy:
+    type: cost
+    maxCostPerReplica: 5.0
+
+  safety:
+    scaleDownCooldown: "10m"
+    scaleUpCooldown: "30s"
+    maxScaleRate: "1"

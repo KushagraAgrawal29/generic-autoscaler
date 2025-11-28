@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: generalscaler-controller
+  labels:
+    app: generalscaler-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: generalscaler-controller
+  template:
+    metadata:
+      labels:
+        app: generalscaler-controller
+    spec:
+      serviceAccountName: generalscaler-sa 
+      containers:
+      - name: controller
+        image: athrav29/kubernetes:gscaler-v9
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
