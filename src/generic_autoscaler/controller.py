@@ -6,14 +6,11 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from datetime import datetime, timezone
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- METRIC PLUGINS ---
 
 class MetricPlugin:
-    """⭐ PLUGIN INTERFACE: Abstract base for all metric sources"""
     
     def get_metric(self, config: Dict) -> float:
         raise NotImplementedError("Plugin must implement get_metric")
@@ -35,20 +32,16 @@ class PrometheusPlugin(MetricPlugin):
             return 50.0 
 
 class RedisPlugin(MetricPlugin):
-    """⭐ CONCRETE PLUGIN: Checks Redis queue length"""
     
     def get_metric(self, config: Dict) -> float:
         host = config.get('host', 'redis-service')
         queue_name = config.get('queue_name', 'default')
         logger.debug(f"📊 Redis check: {queue_name} on {host}")
         
-        # Simulate queue length
         return 10.0 
 
-# --- POLICY ENGINE ---
 
 class PolicyEngine:
-    """⭐ POLICY ENGINE: Makes scaling decisions based on business rules"""
     
     def calculate_desired_replicas(
         self, 
@@ -77,7 +70,6 @@ class PolicyEngine:
         logger.info(f"🎯 SLO Policy: current={current_metric:.2f}, target={target}")
         
         ratio = current_metric / target if target > 0 else 1
-        # Simple floor-based scaling: if ratio > 1, scale up. If ratio < 1, scale down.
         desired = int(current_replicas * ratio) 
         
         min_replicas = scaler_config.get('minReplicas', 1)
@@ -94,38 +86,32 @@ class PolicyEngine:
         current_metric = sum(metrics) / len(metrics) if metrics else 0 
         cost_per_replica = current_metric / current_replicas if current_replicas > 0 else 0
         
-        max_replicas = scaler_config.get('maxReplicas', 10) # Get max bound early
+        max_replicas = scaler_config.get('maxReplicas', 10)
         
         if cost_per_replica > max_cost:
-            # Calculate the number of replicas needed to meet the cost target
-            # Use ceiling logic to ensure we always exceed the requirement slightly
             desired_by_ratio = int(current_metric / max_cost) 
-            if (current_metric / max_cost) > desired_by_ratio: # Check if a fraction exists
-                desired_by_ratio += 1 # Use ceiling math (55/5 = 11.0, so this won't trigger, but good practice)
+            if (current_metric / max_cost) > desired_by_ratio
+                desired_by_ratio += 1
 
-            # Cap the policy result by the absolute max_replicas (10)
             final_desired = min(desired_by_ratio, max_replicas) 
             
             logger.info(f"❌ Policy Engine Scale UP: Calculated={desired_by_ratio}, Capped={final_desired}")
             
-            return final_desired # Should return 10
+            return final_desired
             
         elif cost_per_replica < max_cost * 0.5:
             desired_by_ratio = int(current_metric / (max_cost * 0.8))
             min_replicas = scaler_config.get('minReplicas', 1)
-            
+
             return max(desired_by_ratio, min_replicas)
             
         else:
             return current_replicas
 
-# --- SAFETY MANAGER ---
 
 class SafetyManager:
-    """🛡️ SAFETY MANAGER: Prevents dangerous scaling operations"""
     
     def __init__(self):
-        # Stores last scaling operation time (Unix timestamp)
         self.last_scale_operations: Dict[str, float] = {} 
     
     def can_scale(self, scaler_name: str, safety_config: Dict, direction: str) -> bool:
@@ -181,9 +167,8 @@ class SafetyManager:
             return value * units.get(unit, 1)
         except ValueError:
             logger.error(f"Invalid duration string: {duration_str}")
-            return 300 # Default to 5 minutes (300 seconds)
+            return 300
 
-# --- CONTROLLER ---
 
 class GeneralScalerController:
     """
@@ -217,11 +202,9 @@ class GeneralScalerController:
         
         while True:
             try:
-                # 1. Synchronous API calls must run in a thread
                 scalers = await asyncio.to_thread(self._get_all_scalers)
                 logger.info(f"🔍 Found {len(scalers)} GeneralScaler(s) to reconcile")
                 
-                # 2. Process each scaler concurrently (if many are found)
                 reconciliation_tasks = [self._reconcile_scaler(scaler) for scaler in scalers]
                 await asyncio.gather(*reconciliation_tasks)
                 
@@ -256,7 +239,6 @@ class GeneralScalerController:
         logger.info(f"🔄 Reconciling GeneralScaler: {namespace}/{scaler_name}")
         
         try:
-            # 1. ⭐ GET TARGET DEPLOYMENT (Synchronous, run in thread)
             target_ref = spec.get('targetRef', {})
             target_name = target_ref.get('name')
             
@@ -273,14 +255,12 @@ class GeneralScalerController:
             current_replicas = deployment.spec.replicas or 1
             logger.info(f"🎯 Target: {target_name}, current replicas: {current_replicas}")
             
-            # 2. ⭐ COLLECT METRICS 
             metrics = self._collect_metrics(spec.get('metrics', []), scaler_name)
             
             if not metrics:
                 logger.warning(f"⚠️ No metrics collected for {scaler_name}")
                 return
             
-            # 3. ⭐ CALCULATE DESIRED REPLICAS
             desired_replicas = self.policy_engine.calculate_desired_replicas(
                 current_replicas=current_replicas,
                 metrics=metrics,
@@ -290,9 +270,7 @@ class GeneralScalerController:
             
             logger.info(f"📊 Metrics: {metrics}, Policy Desired: {desired_replicas}")
             
-            # 4. ⭐ APPLY SAFETY CHECKS AND RATE LIMITING
             
-            # Only proceed if policy demands a change
             if desired_replicas == current_replicas:
                 logger.info("✅ Policy calculated no change needed.")
                 await self._update_scaler_status(scaler_name, namespace, current_replicas, deployment.metadata.uid)
@@ -312,7 +290,6 @@ class GeneralScalerController:
                 current_replicas, desired_replicas, safety_config
             )
             
-            # 5. ⭐ EXECUTE SCALING OPERATION
             if limited_replicas != current_replicas:
                 await self._scale_deployment(
                     deployment=deployment,
@@ -322,7 +299,6 @@ class GeneralScalerController:
                 )
                 self.safety_manager.record_scale_operation(scaler_name)
             
-            # 6. ⭐ UPDATE STATUS
             await self._update_scaler_status(scaler_name, namespace, limited_replicas, deployment.metadata.uid)
                 
         except ApiException as e:
@@ -374,7 +350,7 @@ class GeneralScalerController:
         
         def update_sync():
             
-            # Get current time in ISO 8601 format (Kubernetes standard)
+        
             now_iso = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
             
             status_patch = {
@@ -414,5 +390,4 @@ async def main():
     await controller.run()
 
 if __name__ == "__main__":
-    # Ensure asyncio runs the main loop
     asyncio.run(main())

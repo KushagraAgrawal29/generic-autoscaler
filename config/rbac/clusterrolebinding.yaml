@@ -4,9 +4,9 @@ metadata:
   name: generalscaler-binding
 subjects:
 - kind: ServiceAccount
-  name: generalscaler-sa # ⭐ This MUST match the ServiceAccount name
-  namespace: default      # ⭐ This MUST match the namespace where the SA was created
+  name: generalscaler-sa
+  namespace: default     
 roleRef:
   kind: ClusterRole
-  name: generalscaler-controller # ⭐ This MUST match the ClusterRole name you provided
+  name: generalscaler-controller
   apiGroup: rbac.authorization.k8s.io

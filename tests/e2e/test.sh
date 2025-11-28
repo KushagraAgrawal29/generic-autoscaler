@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- Configuration ---
+
 TEST_NS="test-general-scaler"
 SCALER_NAME="test-e2e-scaler"
 TARGET_DEPLOYMENT="e2e-worker-app"
@@ -8,13 +8,12 @@ INITIAL_REPLICAS=11
 FINAL_DESIRED=2
 LOW_LOAD_METRIC=10.0 
 MAX_RATE=1
-SCALE_DOWN_COOLDOWN_SECONDS=60 # Use 60s for testing (instead of 10m)
+SCALE_DOWN_COOLDOWN_SECONDS=60
 
 get_replicas() {
     kubectl get deploy/$TARGET_DEPLOYMENT -n $TEST_NS -o=jsonpath='{.spec.replicas}' 2>/dev/null
 }
 
-# --- 1. Setup Environment ---
 echo "--- 1. Setting up environment ---"
 kubectl create ns $TEST_NS 
 
@@ -58,12 +57,11 @@ spec:
     scaleDownCooldown: "${SCALE_DOWN_COOLDOWN_SECONDS}s" # Use 60s for test speed
 EOF
 
-# --- 2. Verification - First Scale Down (Rate Limit) ---
 echo "--- 2. Verifying initial rate-limited scale-down ($INITIAL_REPLICAS -> 10) ---"
-EXPECTED_SCALE_1=$((INITIAL_REPLICAS - MAX_RATE)) # 11 -> 10
+EXPECTED_SCALE_1=$((INITIAL_REPLICAS - MAX_RATE))
 
-# Wait for the first reconciliation cycle to complete
-sleep 40 # Wait for 30s cycle + some buffer
+
+sleep 40
 
 CURRENT_REPLICAS=$(get_replicas)
 if [[ "$CURRENT_REPLICAS" -eq "$EXPECTED_SCALE_1" ]]; then
@@ -73,10 +71,8 @@ else
     exit 1
 fi
 
-# --- 3. Verification - Cooldown Enforcement ---
 echo "--- 3. Verifying Scale-Down Cooldown is Active (Should remain at 10) ---"
 
-# Wait for the second reconciliation cycle (another 30 seconds)
 sleep 30 
 
 CURRENT_REPLICAS=$(get_replicas)
@@ -87,6 +83,6 @@ else
     exit 1
 fi
 
-# --- 4. Cleanup ---
+
 echo "--- 4. Cleanup ---"
 kubectl delete ns $TEST_NS --force --grace-period=0

@@ -15,7 +15,6 @@ class TestPolicyEngine(unittest.TestCase):
         current_replicas = 5
         metrics = [55.0]
         
-        # NOTE: Since maxReplicas is 10, the policy should return 10, not 11.
         desired = self.engine.calculate_desired_replicas(
             current_replicas, metrics, self.policy_config, self.scaler_config
         )
@@ -24,14 +23,13 @@ class TestPolicyEngine(unittest.TestCase):
     def test_02_max_cap_applied(self):
         """Test: Very high load (80.0) must be capped by maxReplicas (10)"""
         current_replicas = 5
-        metrics = [80.0] # 80.0 / 5.0 = 16 (desired)
+        metrics = [80.0]
         
         desired = self.engine.calculate_desired_replicas(
             current_replicas, metrics, self.policy_config, self.scaler_config
         )
         self.assertEqual(desired, 10, "Should cap 16 desired replicas at 10.")
         
-    # --- Scale Down Tests ---
 
     def test_03_scale_down_required(self):
         """Test: Low load (10.0) should trigger scale down below 11 (to 2)"""
@@ -83,28 +81,22 @@ class TestSafetyManager(unittest.TestCase):
     @patch('time.time')
     def test_07_cooldown_active(self, mock_time):
         """Test: Cooldown active should block scaling"""
-        # 1. Record an operation 10 seconds ago
         mock_time.return_value = 100.0
         self.manager.record_scale_operation(self.scaler_name)
         
-        # 2. Check scaling now (120.0 - 100.0 = 20s elapsed)
+
         mock_time.return_value = 120.0 
         
-        # Cooldown is 30s
         can_scale = self.manager.can_scale(self.scaler_name, self.safety_config, 'up')
         self.assertFalse(can_scale, "Scaling should be blocked because 20s < 30s.")
 
     @patch('time.time')
     def test_08_cooldown_expired(self, mock_time):
-        """Test: Cooldown expired should allow scaling"""
-        # 1. Record an operation long ago
         mock_time.return_value = 100.0 
         self.manager.record_scale_operation(self.scaler_name)
         
-        # 2. Check scaling now (131.0 - 100.0 = 31s elapsed)
         mock_time.return_value = 131.0 
         
-        # Cooldown is 30s
         can_scale = self.manager.can_scale(self.scaler_name, self.safety_config, 'up')
         self.assertTrue(can_scale, "Scaling should be allowed because 31s > 30s.")
 

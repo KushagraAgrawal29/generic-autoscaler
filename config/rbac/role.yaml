@@ -3,27 +3,22 @@ kind: ClusterRole
 metadata:
   name: generalscaler-controller
 rules:
-# 1. Access to the Custom Resource (GeneralScaler)
 - apiGroups: ["autoscaling.example.com"]
   resources: ["generalscalers"]
-  verbs: ["get", "list", "watch"] # Watch is crucial for continuous monitoring
+  verbs: ["get", "list", "watch"]
 
-# 2. Access to the Custom Resource's Status Subresource (to report current state)
 - apiGroups: ["autoscaling.example.com"]  
   resources: ["generalscalers/status"]
-  verbs: ["get", "update", "patch"] # Update/Patch status is a must for the controller
+  verbs: ["get", "update", "patch"]
 
-# 3. Access to Target Deployments (Read/Watch and Modify entire object)
 - apiGroups: ["apps"]
   resources: ["deployments"]
   verbs: ["get", "list", "watch", "update", "patch"]
 
-# 4. Access to the Deployment Scale Subresource (Best practice for scaling)
 - apiGroups: ["apps"]
   resources: ["deployments/scale"]
-  verbs: ["get", "update", "patch"] # ⭐ CRITICAL ADDITION
+  verbs: ["get", "update", "patch"]
 
-# 5. Access to Pods and Services (General monitoring/debugging if needed, though not strictly used in current code)
 - apiGroups: [""]
   resources: ["pods", "services"] 
   verbs: ["get", "list"]
